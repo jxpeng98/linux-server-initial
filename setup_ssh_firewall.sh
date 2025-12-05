@@ -248,12 +248,19 @@ fi
 
 # 6. 重启 SSH 服务（兼容 systemd / service）
 SSH_SERVICE=""
-if command -v systemctl &>/dev/null; then
-  # 优先使用 systemd，处理 socket 激活场景：ssh.socket 只监听 22，导致新端口无效
-  if systemctl list-unit-files | grep -q "^ssh\.socket"; then
-    systemctl stop ssh.socket || true
-    systemctl disable ssh.socket || true
+stop_disable_socket() {
+  local socket_name="$1"
+  if systemctl list-unit-files | grep -q "^${socket_name}"; then
+    systemctl stop "${socket_name}" || true
+    systemctl disable "${socket_name}" || true
+    systemctl mask "${socket_name}" || true
   fi
+}
+if command -v systemctl &>/dev/null; then
+  # 优先使用 systemd，处理 socket 激活场景：ssh.socket/sshd.socket 只监听 22，导致新端口无效
+  stop_disable_socket "ssh.socket"
+  stop_disable_socket "sshd.socket"
+
   if systemctl list-unit-files | grep -q "^ssh\.service"; then
     systemctl enable ssh || true
     systemctl restart ssh
