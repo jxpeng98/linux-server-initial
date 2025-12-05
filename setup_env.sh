@@ -245,7 +245,7 @@ else
 fi
 
 if [ ! -d "${USER_HOME}/.oh-my-zsh" ]; then
-    sudo -u "$NEW_USER" sh -c \
+    sudo -u "$NEW_USER" -H sh -c \
       "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
 else
     if is_en; then
@@ -259,11 +259,11 @@ ZSH_CUSTOM="${USER_HOME}/.oh-my-zsh/custom"
 mkdir -p "$ZSH_CUSTOM/plugins"
 
 if [ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ]; then
-    sudo -u "$NEW_USER" git clone https://github.com/zsh-users/zsh-autosuggestions \
+    sudo -u "$NEW_USER" -H git clone https://github.com/zsh-users/zsh-autosuggestions \
       "${ZSH_CUSTOM}/plugins/zsh-autosuggestions"
 fi
 if [ ! -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ]; then
-    sudo -u "$NEW_USER" git clone https://github.com/zsh-users/zsh-syntax-highlighting.git \
+    sudo -u "$NEW_USER" -H git clone https://github.com/zsh-users/zsh-syntax-highlighting.git \
       "${ZSH_CUSTOM}/plugins/zsh-syntax-highlighting"
 fi
 
