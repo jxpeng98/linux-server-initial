@@ -246,18 +246,35 @@ if ! sshd -t 2>/tmp/sshd_check.log; then
   exit 1
 fi
 
-# 6. 重启 SSH 服务（兼容 ssh / sshd）
-if systemctl list-unit-files | grep -q "^ssh\.service"; then
-  systemctl restart ssh
-  SSH_SERVICE="ssh"
-elif systemctl list-unit-files | grep -q "^sshd\.service"; then
-  systemctl restart sshd
-  SSH_SERVICE="sshd"
-else
+# 6. 重启 SSH 服务（兼容 systemd / service）
+SSH_SERVICE=""
+if command -v systemctl &>/dev/null; then
+  if systemctl list-unit-files | grep -q "^ssh\.service"; then
+    systemctl restart ssh
+    SSH_SERVICE="ssh"
+  elif systemctl list-unit-files | grep -q "^sshd\.service"; then
+    systemctl restart sshd
+    SSH_SERVICE="sshd"
+  fi
+fi
+
+if [ -z "$SSH_SERVICE" ] && command -v service &>/dev/null; then
+  if service ssh status >/dev/null 2>&1 || service sshd status >/dev/null 2>&1; then
+    if service ssh status >/dev/null 2>&1; then
+      service ssh restart
+      SSH_SERVICE="ssh"
+    elif service sshd status >/dev/null 2>&1; then
+      service sshd restart
+      SSH_SERVICE="sshd"
+    fi
+  fi
+fi
+
+if [ -z "$SSH_SERVICE" ]; then
   if is_en; then
-    echo -e "${RED}ssh/sshd systemd service not found, please check manually.${NC}"
+    echo -e "${RED}ssh/sshd service not found via systemd or service. Please check manually (non-systemd system?).${NC}"
   else
-    echo -e "${RED}未找到 ssh / sshd systemd 服务，请手动检查${NC}"
+    echo -e "${RED}未通过 systemd 或 service 找到 ssh/sshd 服务，请手动检查（可能是非 systemd 系统）。${NC}"
   fi
   exit 1
 fi
