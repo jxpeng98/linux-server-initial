@@ -10,6 +10,17 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+verify_checksums() {
+  if [ ! -f "${SCRIPT_DIR}/checksums.sha256" ]; then
+    echo -e "${RED}Missing checksums.sha256; integrity check skipped.${NC}"
+    exit 1
+  fi
+  if ! (cd "$SCRIPT_DIR" && sha256sum -c checksums.sha256 >/dev/null); then
+    echo -e "${RED}Integrity check failed: scripts differ from repository version.${NC}"
+    exit 1
+  fi
+}
+
 if [ "$EUID" -ne 0 ]; then
   echo -e "${RED}请使用 root 权限运行此脚本 (sudo ./linux_server_initial.sh)${NC}"
   echo -e "${RED}Please run this script as root (sudo ./linux_server_initial.sh)${NC}"
@@ -40,6 +51,8 @@ if [ -z "$INIT_LANG" ]; then
 fi
 
 export INIT_LANG
+
+verify_checksums
 
 is_en() {
   [ "$INIT_LANG" = "en" ]

@@ -7,6 +7,8 @@ RED='\033[0;31m'
 YELLOW='\033[0;33m'
 NC='\033[0m'
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 INIT_LANG="${INIT_LANG:-}"
 
 if [ -z "$INIT_LANG" ]; then
@@ -26,6 +28,25 @@ fi
 
 is_en() {
   [ "$INIT_LANG" = "en" ]
+}
+
+verify_checksums() {
+  if [ ! -f "${SCRIPT_DIR}/checksums.sha256" ]; then
+    if is_en; then
+      echo -e "${RED}Missing checksums.sha256; integrity check skipped.${NC}"
+    else
+      echo -e "${RED}缺少 checksums.sha256，无法进行完整性校验。${NC}"
+    fi
+    exit 1
+  fi
+  if ! (cd "$SCRIPT_DIR" && sha256sum -c checksums.sha256 >/dev/null); then
+    if is_en; then
+      echo -e "${RED}Integrity check failed: scripts differ from repository version.${NC}"
+    else
+      echo -e "${RED}完整性校验失败：脚本与仓库版本不一致。${NC}"
+    fi
+    exit 1
+  fi
 }
 
 msg() {
@@ -54,6 +75,8 @@ prompt_read() {
   fi
   printf -v "$__var" '%s' "$input"
 }
+
+verify_checksums
 
 if [ "$EUID" -ne 0 ]; then
   if is_en; then
