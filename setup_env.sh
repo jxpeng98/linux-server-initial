@@ -121,6 +121,11 @@ else
   echo -e "将使用用户: ${GREEN}${NEW_USER}${NC}"
 fi
 
+prompt_read "是否跳过创建该用户（要求用户已存在）? [y/N]: " \
+            "Skip creating this user (user must already exist)? [y/N]: " \
+            "n" SKIP_USER_CREATION
+SKIP_USER_CREATION="${SKIP_USER_CREATION:-n}"
+
 # 2. 确认是否配置 sudo 免密
 if is_en; then
   prompt_read "是否为 ${NEW_USER} 配置 sudo 免密码? [y/N]: " \
@@ -134,31 +139,82 @@ fi
 SUDO_NOPASSWD="${SUDO_NOPASSWD:-n}"
 
 # 3. 安装基础依赖
-if is_en; then
-  echo -e "${GREEN}1. Updating system and installing base packages...${NC}"
+prompt_read "是否跳过系统更新和基础包安装? [y/N]: " \
+            "Skip updating system and installing base packages? [y/N]: " \
+            "n" SKIP_BASE_PACKAGES
+SKIP_BASE_PACKAGES="${SKIP_BASE_PACKAGES:-n}"
+
+if [[ "$SKIP_BASE_PACKAGES" =~ ^[Yy]$ ]]; then
+  if is_en; then
+    echo -e "${YELLOW}Skipping system update and base package installation.${NC}"
+  else
+    echo -e "${YELLOW}跳过系统更新和基础包安装${NC}"
+  fi
 else
-  echo -e "${GREEN}1. 更新系统并安装基础工具...${NC}"
+  if is_en; then
+    echo -e "${GREEN}1. Updating system and installing base packages...${NC}"
+  else
+    echo -e "${GREEN}1. 更新系统并安装基础工具...${NC}"
+  fi
+  apt update
+  apt install -y git curl zsh vim ufw ca-certificates gnupg build-essential \
+    libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev wget llvm \
+    libncurses5-dev libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev \
+    python3-openssl
 fi
-apt update
-apt install -y git curl zsh vim ufw ca-certificates gnupg build-essential \
-  libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev wget llvm \
-  libncurses5-dev libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev \
-  python3-openssl
 
 # 4. 创建用户并赋予 sudo 组
-if id "$NEW_USER" &>/dev/null; then
+if [[ "$SKIP_USER_CREATION" =~ ^[Yy]$ ]]; then
+  if is_en; then
+    echo -e "${YELLOW}Skipping user creation step; the user must already exist.${NC}"
+  else
+    echo -e "${YELLOW}跳过创建用户步骤，后续操作要求该用户已存在。${NC}"
+  fi
+  if ! id "$NEW_USER" &>/dev/null; then
     if is_en; then
-      echo -e "${YELLOW}User $NEW_USER already exists, skipping creation.${NC}"
+      echo -e "${RED}User ${NEW_USER} does not exist; please create it or rerun without skipping creation.${NC}"
     else
-      echo -e "${YELLOW}用户 $NEW_USER 已存在，跳过创建${NC}"
+      echo -e "${RED}用户 ${NEW_USER} 不存在，请先创建该用户或取消跳过创建步骤重新运行。${NC}"
     fi
+    exit 1
+  fi
 else
-    useradd -m -s /usr/bin/zsh -G sudo "$NEW_USER"
-    if is_en; then
-      echo -e "${GREEN}User $NEW_USER created successfully.${NC}"
-    else
-      echo -e "${GREEN}用户 $NEW_USER 创建成功${NC}"
-    fi
+  if id "$NEW_USER" &>/dev/null; then
+      if is_en; then
+        echo -e "${YELLOW}User $NEW_USER already exists, skipping creation.${NC}"
+      else
+        echo -e "${YELLOW}用户 $NEW_USER 已存在，跳过创建${NC}"
+      fi
+  else
+      useradd -m -s /usr/bin/zsh -G sudo "$NEW_USER"
+      if is_en; then
+        echo -e "${GREEN}User $NEW_USER created successfully.${NC}"
+      else
+        echo -e "${GREEN}用户 $NEW_USER 创建成功${NC}"
+      fi
+  fi
+fi
+
+if ! id "$NEW_USER" &>/dev/null; then
+  if is_en; then
+    echo -e "${RED}User ${NEW_USER} not found; cannot continue.${NC}"
+  else
+    echo -e "${RED}未找到用户 ${NEW_USER}，无法继续。${NC}"
+  fi
+  exit 1
+fi
+
+USER_HOME="$(getent passwd "$NEW_USER" | cut -d: -f6 || true)"
+if [ -z "$USER_HOME" ] || [ ! -d "$USER_HOME" ]; then
+  USER_HOME="$(eval echo "~$NEW_USER")"
+fi
+if [ -z "$USER_HOME" ] || [ ! -d "$USER_HOME" ]; then
+  if is_en; then
+    echo -e "${RED}Failed to resolve home directory for ${NEW_USER}; please ensure it exists.${NC}"
+  else
+    echo -e "${RED}无法定位 ${NEW_USER} 的家目录，请确保目录存在。${NC}"
+  fi
+  exit 1
 fi
 
 # 5. 配置 sudo 免密
@@ -180,49 +236,61 @@ else
 fi
 
 # 6. 配置 SSH Key
-USER_HOME=$(eval echo "~$NEW_USER")
-SSH_DIR="${USER_HOME}/.ssh"
-AUTH_KEYS="${SSH_DIR}/authorized_keys"
+prompt_read "是否跳过配置 SSH 公钥? [y/N]: " \
+            "Skip configuring SSH public key? [y/N]: " \
+            "n" SKIP_SSH_KEY
+SKIP_SSH_KEY="${SKIP_SSH_KEY:-n}"
 
-mkdir -p "$SSH_DIR"
-chmod 700 "$SSH_DIR"
-chown "$NEW_USER:$NEW_USER" "$SSH_DIR"
-
-echo -e "${GREEN}==============================================${NC}"
-if is_en; then
-  echo -e "${GREEN}Please paste your SSH public key, then press Enter:${NC}"
-else
-  echo -e "${GREEN}请粘贴你的 SSH 公钥 (Public Key)，然后回车确认：${NC}"
-fi
-echo -e "${GREEN}==============================================${NC}"
-read -r PUBLIC_KEY
-
-if [ -z "$PUBLIC_KEY" ]; then
-    if is_en; then
-      echo -e "${RED}Public key is empty, exiting.${NC}"
-    else
-      echo -e "${RED}公钥为空，退出${NC}"
-    fi
-    exit 1
-fi
-
-# 幂等：如果已存在相同公钥就不重复写入
-touch "$AUTH_KEYS"
-chmod 600 "$AUTH_KEYS"
-chown "$NEW_USER:$NEW_USER" "$AUTH_KEYS"
-
-if ! grep -qF "$PUBLIC_KEY" "$AUTH_KEYS"; then
-  echo "$PUBLIC_KEY" >> "$AUTH_KEYS"
+if [[ "$SKIP_SSH_KEY" =~ ^[Yy]$ ]]; then
   if is_en; then
-    echo -e "${GREEN}SSH public key written to ${AUTH_KEYS}.${NC}"
+    echo -e "${YELLOW}Skipping SSH public key configuration.${NC}"
   else
-    echo -e "${GREEN}SSH 公钥已写入 ${AUTH_KEYS}${NC}"
+    echo -e "${YELLOW}跳过配置 SSH 公钥${NC}"
   fi
 else
+  SSH_DIR="${USER_HOME}/.ssh"
+  AUTH_KEYS="${SSH_DIR}/authorized_keys"
+
+  mkdir -p "$SSH_DIR"
+  chmod 700 "$SSH_DIR"
+  chown "$NEW_USER:$NEW_USER" "$SSH_DIR"
+
+  echo -e "${GREEN}==============================================${NC}"
   if is_en; then
-    echo -e "${YELLOW}This SSH public key already exists in authorized_keys, skipping append.${NC}"
+    echo -e "${GREEN}Please paste your SSH public key, then press Enter:${NC}"
   else
-    echo -e "${YELLOW}该 SSH 公钥已存在于 authorized_keys 中，跳过追加${NC}"
+    echo -e "${GREEN}请粘贴你的 SSH 公钥 (Public Key)，然后回车确认：${NC}"
+  fi
+  echo -e "${GREEN}==============================================${NC}"
+  read -r PUBLIC_KEY
+
+  if [ -z "$PUBLIC_KEY" ]; then
+      if is_en; then
+        echo -e "${RED}Public key is empty, exiting.${NC}"
+      else
+        echo -e "${RED}公钥为空，退出${NC}"
+      fi
+      exit 1
+  fi
+
+  # 幂等：如果已存在相同公钥就不重复写入
+  touch "$AUTH_KEYS"
+  chmod 600 "$AUTH_KEYS"
+  chown "$NEW_USER:$NEW_USER" "$AUTH_KEYS"
+
+  if ! grep -qF "$PUBLIC_KEY" "$AUTH_KEYS"; then
+    echo "$PUBLIC_KEY" >> "$AUTH_KEYS"
+    if is_en; then
+      echo -e "${GREEN}SSH public key written to ${AUTH_KEYS}.${NC}"
+    else
+      echo -e "${GREEN}SSH 公钥已写入 ${AUTH_KEYS}${NC}"
+    fi
+  else
+    if is_en; then
+      echo -e "${YELLOW}This SSH public key already exists in authorized_keys, skipping append.${NC}"
+    else
+      echo -e "${YELLOW}该 SSH 公钥已存在于 authorized_keys 中，跳过追加${NC}"
+    fi
   fi
 fi
 
@@ -261,72 +329,90 @@ else
 fi
 
 # 8. 安装 Oh My Zsh 及插件
-if is_en; then
-  echo -e "${GREEN}2. Installing Oh My Zsh and plugins for ${NEW_USER}...${NC}"
-else
-  echo -e "${GREEN}2. 为 ${NEW_USER} 安装 Oh My Zsh 及插件...${NC}"
-fi
-
-if [ ! -d "${USER_HOME}/.oh-my-zsh" ]; then
-    sudo -u "$NEW_USER" -H sh -c \
-      "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
-else
-    if is_en; then
-      echo -e "${YELLOW}Oh My Zsh already exists, skipping installation.${NC}"
-    else
-      echo -e "${YELLOW}Oh My Zsh 已存在，跳过安装${NC}"
-    fi
-fi
-
-ZSH_CUSTOM="${USER_HOME}/.oh-my-zsh/custom"
-mkdir -p "$ZSH_CUSTOM/plugins"
-
-if [ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ]; then
-    sudo -u "$NEW_USER" -H git clone https://github.com/zsh-users/zsh-autosuggestions \
-      "${ZSH_CUSTOM}/plugins/zsh-autosuggestions"
-fi
-if [ ! -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ]; then
-    sudo -u "$NEW_USER" -H git clone https://github.com/zsh-users/zsh-syntax-highlighting.git \
-      "${ZSH_CUSTOM}/plugins/zsh-syntax-highlighting"
-fi
+prompt_read "是否跳过安装 Oh My Zsh 及插件? [y/N]: " \
+            "Skip installing Oh My Zsh and plugins? [y/N]: " \
+            "n" SKIP_OH_MY_ZSH
+SKIP_OH_MY_ZSH="${SKIP_OH_MY_ZSH:-n}"
 
 ZSHRC="${USER_HOME}/.zshrc"
-# 如果缺少 .zshrc，先用 oh-my-zsh 模板初始化，否则创建一个最小默认文件
-if [ ! -f "$ZSHRC" ]; then
-  TEMPLATE="${USER_HOME}/.oh-my-zsh/templates/zshrc.zsh-template"
-  if [ -f "$TEMPLATE" ]; then
-    sudo -u "$NEW_USER" -H cp "$TEMPLATE" "$ZSHRC"
-    if is_en; then
-      echo -e "${GREEN}Initialized ${ZSHRC} from Oh My Zsh template.${NC}"
-    else
-      echo -e "${GREEN}已使用 Oh My Zsh 模板初始化 ${ZSHRC}.${NC}"
-    fi
+
+if [[ "$SKIP_OH_MY_ZSH" =~ ^[Yy]$ ]]; then
+  if is_en; then
+    echo -e "${YELLOW}Skipping Oh My Zsh and plugin setup.${NC}"
   else
-    sudo -u "$NEW_USER" -H cat <<'EOF' > "$ZSHRC"
+    echo -e "${YELLOW}跳过安装 Oh My Zsh 及插件${NC}"
+  fi
+  if [ ! -f "$ZSHRC" ]; then
+    touch "$ZSHRC"
+    chown "$NEW_USER:$NEW_USER" "$ZSHRC"
+  fi
+else
+  if is_en; then
+    echo -e "${GREEN}2. Installing Oh My Zsh and plugins for ${NEW_USER}...${NC}"
+  else
+    echo -e "${GREEN}2. 为 ${NEW_USER} 安装 Oh My Zsh 及插件...${NC}"
+  fi
+
+  if [ ! -d "${USER_HOME}/.oh-my-zsh" ]; then
+      sudo -u "$NEW_USER" -H sh -c \
+        "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+  else
+      if is_en; then
+        echo -e "${YELLOW}Oh My Zsh already exists, skipping installation.${NC}"
+      else
+        echo -e "${YELLOW}Oh My Zsh 已存在，跳过安装${NC}"
+      fi
+  fi
+
+  ZSH_CUSTOM="${USER_HOME}/.oh-my-zsh/custom"
+  mkdir -p "$ZSH_CUSTOM/plugins"
+
+  if [ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ]; then
+      sudo -u "$NEW_USER" -H git clone https://github.com/zsh-users/zsh-autosuggestions \
+        "${ZSH_CUSTOM}/plugins/zsh-autosuggestions"
+  fi
+  if [ ! -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ]; then
+      sudo -u "$NEW_USER" -H git clone https://github.com/zsh-users/zsh-syntax-highlighting.git \
+        "${ZSH_CUSTOM}/plugins/zsh-syntax-highlighting"
+  fi
+
+  # 如果缺少 .zshrc，先用 oh-my-zsh 模板初始化，否则创建一个最小默认文件
+  if [ ! -f "$ZSHRC" ]; then
+    TEMPLATE="${USER_HOME}/.oh-my-zsh/templates/zshrc.zsh-template"
+    if [ -f "$TEMPLATE" ]; then
+      sudo -u "$NEW_USER" -H cp "$TEMPLATE" "$ZSHRC"
+      if is_en; then
+        echo -e "${GREEN}Initialized ${ZSHRC} from Oh My Zsh template.${NC}"
+      else
+        echo -e "${GREEN}已使用 Oh My Zsh 模板初始化 ${ZSHRC}.${NC}"
+      fi
+    else
+      sudo -u "$NEW_USER" -H cat <<'EOF' > "$ZSHRC"
 # ~/.zshrc (generated by setup_env.sh)
 export ZSH="$HOME/.oh-my-zsh"
 ZSH_THEME="robbyrussell"
 plugins=(git)
 source $ZSH/oh-my-zsh.sh
 EOF
-    if is_en; then
-      echo -e "${YELLOW}Oh My Zsh template not found; created a minimal ~/.zshrc instead.${NC}"
-    else
-      echo -e "${YELLOW}未找到 Oh My Zsh 模板，已创建一个最小的 ~/.zshrc。${NC}"
+      if is_en; then
+        echo -e "${YELLOW}Oh My Zsh template not found; created a minimal ~/.zshrc instead.${NC}"
+      else
+        echo -e "${YELLOW}未找到 Oh My Zsh 模板，已创建一个最小的 ~/.zshrc。${NC}"
+      fi
     fi
+    chown "$NEW_USER:$NEW_USER" "$ZSHRC"
+  fi
+
+  # 注入插件配置
+  if grep -q "^plugins=(git)" "$ZSHRC"; then
+    sed -i 's/^plugins=(git)/plugins=(git sudo docker docker-compose zsh-autosuggestions zsh-syntax-highlighting)/' "$ZSHRC"
+  elif ! grep -q "zsh-autosuggestions" "$ZSHRC"; then
+    echo 'plugins=(git sudo docker docker-compose zsh-autosuggestions zsh-syntax-highlighting)' >> "$ZSHRC"
   fi
   chown "$NEW_USER:$NEW_USER" "$ZSHRC"
 fi
 
-# 注入插件配置
-if grep -q "^plugins=(git)" "$ZSHRC"; then
-  sed -i 's/^plugins=(git)/plugins=(git sudo docker docker-compose zsh-autosuggestions zsh-syntax-highlighting)/' "$ZSHRC"
-elif ! grep -q "zsh-autosuggestions" "$ZSHRC"; then
-  echo 'plugins=(git sudo docker docker-compose zsh-autosuggestions zsh-syntax-highlighting)' >> "$ZSHRC"
-fi
-chown "$NEW_USER:$NEW_USER" "$ZSHRC"
-
-# 9. 是否安装 mise + Python/Node/uv/pnpm
+# 9. 是否安装 mise + Python/Node/uv/pnpm/codex/gemini
 if is_en; then
   prompt_read "是否安装 mise + Python/Node/uv/pnpm? [Y/n]: " \
               "Install mise + Python/Node/uv/pnpm? [Y/n]: " \

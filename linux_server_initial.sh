@@ -106,6 +106,18 @@ run_security_hardening() {
   bash "${SCRIPT_DIR}/setup_security_hardening.sh"
 }
 
+run_optional_software() {
+  if [ ! -x "${SCRIPT_DIR}/install_optional_software.sh" ]; then
+    if is_en; then
+      echo -e "${RED}install_optional_software.sh not found, please check the project files.${NC}"
+    else
+      echo -e "${RED}未找到 install_optional_software.sh，请确认项目完整性${NC}"
+    fi
+    return 1
+  fi
+  bash "${SCRIPT_DIR}/install_optional_software.sh"
+}
+
 show_menu() {
   echo -e "${GREEN}==============================================${NC}"
   if is_en; then
@@ -120,6 +132,7 @@ show_menu() {
     echo -e "3) System security hardening (sysctl, auditd, auto-updates)"
     echo -e "4) Roll back SSH configuration (from backup)"
     echo -e "5) Recommended full flow (1 + 2 + 3)"
+    echo -e "6) Install optional software bundles"
     echo -e "0) Exit"
   else
     echo -e "1) 创建新用户并初始化开发环境"
@@ -127,6 +140,7 @@ show_menu() {
     echo -e "3) 系统安全加固 (sysctl、auditd、自动更新)"
     echo -e "4) 回滚 SSH 配置（使用备份恢复）"
     echo -e "5) 一键执行推荐流程 (1 + 2 + 3)"
+    echo -e "6) 安装常用软件组合（可多选）"
     echo -e "0) 退出"
   fi
   echo -e "${GREEN}----------------------------------------------${NC}"
@@ -135,9 +149,9 @@ show_menu() {
 while true; do
   show_menu
   if is_en; then
-    read -rp "Select an option [0-5]: " choice
+    read -rp "Select an option [0-6]: " choice
   else
-    read -rp "请选择要执行的操作 [0-5]: " choice
+    read -rp "请选择要执行的操作 [0-6]: " choice
   fi
   case "$choice" in
     1)
@@ -182,6 +196,14 @@ while true; do
       run_setup_ssh_firewall
       run_security_hardening
       ;;
+    6)
+      if is_en; then
+        echo -e "${GREEN}>>> Running: install optional software bundles${NC}"
+      else
+        echo -e "${GREEN}>>> 执行：安装常用软件组合${NC}"
+      fi
+      run_optional_software
+      ;;
     0)
       if is_en; then
         echo -e "${GREEN}Exited Linux initialization wizard${NC}"
@@ -192,9 +214,9 @@ while true; do
       ;;
     *)
       if is_en; then
-        echo -e "${YELLOW}Invalid option, please enter a number between 0 and 5.${NC}"
+        echo -e "${YELLOW}Invalid option, please enter a number between 0 and 6.${NC}"
       else
-        echo -e "${YELLOW}无效选项，请输入 0-5 之间的数字${NC}"
+        echo -e "${YELLOW}无效选项，请输入 0-6 之间的数字${NC}"
       fi
       ;;
   esac

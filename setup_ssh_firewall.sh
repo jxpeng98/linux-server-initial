@@ -169,9 +169,25 @@ set_ssh_option "MaxStartups" "10:30:60"
 set_ssh_option "ClientAliveInterval" "300"
 set_ssh_option "ClientAliveCountMax" "2"
 
-# 禁用不安全的功能
+# 禁用不安全的功能（端口转发默认开启以兼容 VS Code Remote 等，需时可关闭）
+ALLOW_FORWARDING_DEFAULT="y"
+if is_en; then
+  prompt_read "Allow SSH port forwarding (needed for VS Code Remote/port forwarding)? [Y/n]: " \
+              "Allow SSH port forwarding (needed for VS Code Remote/port forwarding)? [Y/n]: " \
+              "$ALLOW_FORWARDING_DEFAULT" ALLOW_FORWARDING
+else
+  prompt_read "是否允许 SSH 端口转发（VS Code Remote/端口转发需要）? [Y/n]: " \
+              "Allow SSH port forwarding (needed for VS Code Remote/port forwarding)? [Y/n]: " \
+              "$ALLOW_FORWARDING_DEFAULT" ALLOW_FORWARDING
+fi
+ALLOW_FORWARDING="${ALLOW_FORWARDING:-$ALLOW_FORWARDING_DEFAULT}"
+
 set_ssh_option "X11Forwarding" "no"
-set_ssh_option "AllowTcpForwarding" "no"
+if [[ "$ALLOW_FORWARDING" =~ ^[Yy]$ ]]; then
+  set_ssh_option "AllowTcpForwarding" "yes"
+else
+  set_ssh_option "AllowTcpForwarding" "no"
+fi
 set_ssh_option "AllowAgentForwarding" "no"
 set_ssh_option "PermitUserEnvironment" "no"
 set_ssh_option "PermitTunnel" "no"
