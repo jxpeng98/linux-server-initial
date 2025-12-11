@@ -103,12 +103,6 @@ If you only want to run a specific step, you can call the scripts directly:
   sudo ./rollback_ssh.sh
   ```
 
-- 重新生成脚本校验和（开发者使用）/ Regenerate script checksums (for developers):
-
-  ```bash
-  ./generate_checksums.sh
-  ```
-
 ### 安全加固功能详情 / Security Hardening Details
 
 `setup_security_hardening.sh` 脚本提供以下安全加固选项：  
