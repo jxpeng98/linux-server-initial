@@ -461,47 +461,108 @@ else
   fi
 fi
 
-# 10. 是否安装 Docker
+# 10. 选择容器运行时 (Docker / Podman / 跳过)
+echo ""
 if is_en; then
-  prompt_read "是否安装 Docker (Docker Engine + Compose 插件)? [Y/n]: " \
-              "Install Docker (Docker Engine + Compose plugin)? [Y/n]: " \
-              "y" INSTALL_DOCKER
+  echo -e "${GREEN}Select container runtime:${NC}"
+  echo -e "  1) Docker (Docker Engine + Compose plugin)"
+  echo -e "  2) Podman (rootless container engine)"
+  echo -e "  0) Skip"
+  read -rp "Enter choice [0-2, default=1]: " CONTAINER_CHOICE
 else
-  prompt_read "是否安装 Docker (Docker Engine + Compose 插件)? [Y/n]: " \
-              "Install Docker (Docker Engine + Compose plugin)? [Y/n]: " \
-              "y" INSTALL_DOCKER
+  echo -e "${GREEN}选择容器运行时:${NC}"
+  echo -e "  1) Docker (Docker Engine + Compose 插件)"
+  echo -e "  2) Podman (无根容器引擎)"
+  echo -e "  0) 跳过"
+  read -rp "请输入选项 [0-2, 默认=1]: " CONTAINER_CHOICE
 fi
-INSTALL_DOCKER="${INSTALL_DOCKER:-y}"
+CONTAINER_CHOICE="${CONTAINER_CHOICE:-1}"
 
-if [[ "$INSTALL_DOCKER" =~ ^[Yy]$ ]]; then
-  if is_en; then
-    echo -e "${GREEN}4. Installing Docker...${NC}"
-  else
-    echo -e "${GREEN}4. 安装 Docker...${NC}"
-  fi
-  install -m 0755 -d /etc/apt/keyrings
-  if [ ! -f "/etc/apt/keyrings/docker.gpg" ]; then
-      curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
-        gpg --dearmor -o /etc/apt/keyrings/docker.gpg --yes
-      chmod a+r /etc/apt/keyrings/docker.gpg
-  fi
+case "$CONTAINER_CHOICE" in
+  1)
+    # 安装 Docker
+    if is_en; then
+      echo -e "${GREEN}4. Installing Docker...${NC}"
+    else
+      echo -e "${GREEN}4. 安装 Docker...${NC}"
+    fi
+    install -m 0755 -d /etc/apt/keyrings
+    if [ ! -f "/etc/apt/keyrings/docker.gpg" ]; then
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+          gpg --dearmor -o /etc/apt/keyrings/docker.gpg --yes
+        chmod a+r /etc/apt/keyrings/docker.gpg
+    fi
 
-  if [ ! -f /etc/apt/sources.list.d/docker.list ]; then
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
-      | tee /etc/apt/sources.list.d/docker.list > /dev/null
-  fi
+    if [ ! -f /etc/apt/sources.list.d/docker.list ]; then
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+        | tee /etc/apt/sources.list.d/docker.list > /dev/null
+    fi
 
-  apt update
-  apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-  systemctl enable --now docker
-  usermod -aG docker "$NEW_USER"
-else
-  if is_en; then
-    echo -e "${YELLOW}Skipping Docker installation.${NC}"
-  else
-    echo -e "${YELLOW}跳过 Docker 安装${NC}"
-  fi
-fi
+    apt update
+    apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    systemctl enable --now docker
+    usermod -aG docker "$NEW_USER"
+    if is_en; then
+      echo -e "${GREEN}✅ Docker installed successfully.${NC}"
+    else
+      echo -e "${GREEN}✅ Docker 安装完成${NC}"
+    fi
+    ;;
+  2)
+    # 安装 Podman
+    if is_en; then
+      echo -e "${GREEN}4. Installing Podman...${NC}"
+    else
+      echo -e "${GREEN}4. 安装 Podman...${NC}"
+    fi
+    apt update
+    apt install -y podman podman-compose
+
+    # 为用户配置 rootless podman
+    if is_en; then
+      echo -e "${GREEN}Configuring rootless Podman for user ${NEW_USER}...${NC}"
+    else
+      echo -e "${GREEN}为用户 ${NEW_USER} 配置 rootless Podman...${NC}"
+    fi
+
+    # 确保 subuid/subgid 配置正确
+    if ! grep -q "^${NEW_USER}:" /etc/subuid 2>/dev/null; then
+      usermod --add-subuids 100000-165535 "$NEW_USER"
+    fi
+    if ! grep -q "^${NEW_USER}:" /etc/subgid 2>/dev/null; then
+      usermod --add-subgids 100000-165535 "$NEW_USER"
+    fi
+
+    # 创建 podman 配置目录
+    USER_PODMAN_CONFIG="${USER_HOME}/.config/containers"
+    mkdir -p "$USER_PODMAN_CONFIG"
+    chown -R "$NEW_USER:$NEW_USER" "${USER_HOME}/.config"
+
+    # 添加 docker 别名到 .zshrc (可选)
+    ZSHRC="${USER_HOME}/.zshrc"
+    if [ -f "$ZSHRC" ] && ! grep -q "alias docker=" "$ZSHRC"; then
+      echo '' >> "$ZSHRC"
+      echo '# Podman as Docker replacement' >> "$ZSHRC"
+      echo 'alias docker=podman' >> "$ZSHRC"
+      echo 'alias docker-compose=podman-compose' >> "$ZSHRC"
+    fi
+
+    if is_en; then
+      echo -e "${GREEN}✅ Podman installed successfully.${NC}"
+      echo -e "${YELLOW}Note: 'docker' and 'docker-compose' aliases have been added to .zshrc${NC}"
+    else
+      echo -e "${GREEN}✅ Podman 安装完成${NC}"
+      echo -e "${YELLOW}提示：已在 .zshrc 中添加 docker/docker-compose 别名指向 podman${NC}"
+    fi
+    ;;
+  0|*)
+    if is_en; then
+      echo -e "${YELLOW}Skipping container runtime installation.${NC}"
+    else
+      echo -e "${YELLOW}跳过容器运行时安装${NC}"
+    fi
+    ;;
+esac
 
 echo -e "${GREEN}=====================================================${NC}"
 if is_en; then
