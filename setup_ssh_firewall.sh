@@ -191,7 +191,66 @@ if ! sshd -t 2>/tmp/sshd_check.log; then
   exit 1
 fi
 
-# 6. 重启 SSH 服务（兼容 systemd / service）
+# 6. 先配置 UFW 防火墙（在重启 SSH 之前，确保新端口已放行）
+if is_en; then
+  echo -e "${GREEN}Configuring UFW firewall rules...${NC}"
+else
+  echo -e "${GREEN}开始配置 UFW 防火墙规则...${NC}"
+fi
+
+# 确保 UFW 已安装
+if ! command -v ufw &>/dev/null; then
+  apt update
+  apt install -y ufw
+fi
+
+# 放行 22 和新端口（幂等，使用 limit 对 SSH 端口做简单暴力破解防护）
+# 必须在重启 SSH 之前配置，否则如果 UFW 已启用，新端口会被阻止
+ufw limit 22/tcp || true
+ufw limit "${SSH_PORT}"/tcp || true
+
+# 默认策略
+ufw default deny incoming
+ufw default allow outgoing
+
+UFW_STATUS=$(ufw status | head -n1 | awk '{print $2}')
+if [ "$UFW_STATUS" = "inactive" ]; then
+  if is_en; then
+    prompt_read "UFW 目前未启用，是否现在启用? [Y/n]: " \
+                "UFW is currently inactive, enable it now? [Y/n]: " \
+                "y" ENABLE_UFW
+  else
+    prompt_read "UFW 目前未启用，是否现在启用? [Y/n]: " \
+                "UFW is currently inactive, enable it now? [Y/n]: " \
+                "y" ENABLE_UFW
+  fi
+  ENABLE_UFW="${ENABLE_UFW:-y}"
+  if [[ "$ENABLE_UFW" =~ ^[Yy]$ ]]; then
+    echo "y" | ufw enable
+    if is_en; then
+      echo -e "${GREEN}UFW enabled.${NC}"
+    else
+      echo -e "${GREEN}UFW 已启用${NC}"
+    fi
+  else
+    if is_en; then
+      echo -e "${YELLOW}Keep UFW inactive.${NC}"
+    else
+      echo -e "${YELLOW}保持 UFW 未启用状态${NC}"
+    fi
+  fi
+else
+  # UFW 已启用，重载规则确保生效
+  ufw reload || true
+  if is_en; then
+    echo -e "${YELLOW}UFW already active, rules updated and reloaded.${NC}"
+  else
+    echo -e "${YELLOW}UFW 已处于启用状态，规则已更新并重载${NC}"
+  fi
+fi
+
+# 7. 重启 SSH 服务（兼容 systemd / service）
+# 注意：必须在 UFW 配置之后重启，确保新端口不被防火墙阻止
 SSH_SERVICE=""
 stop_disable_socket() {
   local socket_name="$1"
@@ -241,61 +300,6 @@ if is_en; then
   echo -e "${GREEN}SSH service (${SSH_SERVICE}) restarted.${NC}"
 else
   echo -e "${GREEN}SSH 服务 (${SSH_SERVICE}) 已重启${NC}"
-fi
-
-# 7. 配置 UFW 防火墙
-if is_en; then
-  echo -e "${GREEN}Configuring UFW firewall rules...${NC}"
-else
-  echo -e "${GREEN}开始配置 UFW 防火墙规则...${NC}"
-fi
-
-# 确保 UFW 已安装
-if ! command -v ufw &>/dev/null; then
-  apt update
-  apt install -y ufw
-fi
-
-# 放行 22 和新端口（幂等，使用 limit 对 SSH 端口做简单暴力破解防护）
-ufw limit 22/tcp || true
-ufw limit "${SSH_PORT}"/tcp || true
-
-# 默认策略
-ufw default deny incoming
-ufw default allow outgoing
-
-UFW_STATUS=$(ufw status | head -n1 | awk '{print $2}')
-if [ "$UFW_STATUS" = "inactive" ]; then
-  if is_en; then
-    prompt_read "UFW 目前未启用，是否现在启用? [Y/n]: " \
-                "UFW is currently inactive, enable it now? [Y/n]: " \
-                "y" ENABLE_UFW
-  else
-    prompt_read "UFW 目前未启用，是否现在启用? [Y/n]: " \
-                "UFW is currently inactive, enable it now? [Y/n]: " \
-                "y" ENABLE_UFW
-  fi
-  ENABLE_UFW="${ENABLE_UFW:-y}"
-  if [[ "$ENABLE_UFW" =~ ^[Yy]$ ]]; then
-    echo "y" | ufw enable
-    if is_en; then
-      echo -e "${GREEN}UFW enabled.${NC}"
-    else
-      echo -e "${GREEN}UFW 已启用${NC}"
-    fi
-  else
-    if is_en; then
-      echo -e "${YELLOW}Keep UFW inactive.${NC}"
-    else
-      echo -e "${YELLOW}保持 UFW 未启用状态${NC}"
-    fi
-  fi
-else
-  if is_en; then
-    echo -e "${YELLOW}UFW already active, rules updated.${NC}"
-  else
-    echo -e "${YELLOW}UFW 已处于启用状态，仅更新了规则${NC}"
-  fi
 fi
 
 # 8. 可选：安装并配置 fail2ban

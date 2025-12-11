@@ -10,6 +10,7 @@ on:
       - 'setup_env.sh'
       - 'setup_ssh_firewall.sh'
       - 'setup_security_hardening.sh'
+      - 'setup_nginx_proxy.sh'
       - 'rollback_ssh.sh'
   workflow_dispatch:  # 允许手动触发
 
@@ -28,7 +29,7 @@ jobs:
       - name: Generate checksums
         run: |
           cd ${{ github.workspace }}
-          sha256sum common.sh linux_server_initial.sh setup_env.sh setup_ssh_firewall.sh setup_security_hardening.sh rollback_ssh.sh > checksums.sha256
+          sha256sum common.sh linux_server_initial.sh setup_env.sh setup_ssh_firewall.sh setup_security_hardening.sh setup_nginx_proxy.sh rollback_ssh.sh > checksums.sha256
           echo "Generated checksums:"
           cat checksums.sha256
 

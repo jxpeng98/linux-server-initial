@@ -79,6 +79,21 @@ run_security_hardening() {
   log_info "Completed setup_security_hardening.sh"
 }
 
+run_nginx_proxy() {
+  log_info "Starting setup_nginx_proxy.sh"
+  if [ ! -x "${SCRIPT_DIR}/setup_nginx_proxy.sh" ]; then
+    if is_en; then
+      echo -e "${RED}setup_nginx_proxy.sh not found, please check the project files.${NC}"
+    else
+      echo -e "${RED}未找到 setup_nginx_proxy.sh，请确认项目完整性${NC}"
+    fi
+    log_error "setup_nginx_proxy.sh not found"
+    return 1
+  fi
+  bash "${SCRIPT_DIR}/setup_nginx_proxy.sh"
+  log_info "Completed setup_nginx_proxy.sh"
+}
+
 show_menu() {
   echo -e "${GREEN}==============================================${NC}"
   if is_en; then
@@ -93,6 +108,7 @@ show_menu() {
     echo -e "3) System security hardening (sysctl, auditd, auto-updates)"
     echo -e "4) Roll back SSH configuration (from backup)"
     echo -e "5) Recommended full flow (1 + 2 + 3)"
+    echo -e "6) Setup nginx reverse proxy (for Cloudflare Tunnel)"
     echo -e "0) Exit"
   else
     echo -e "1) 创建新用户并初始化开发环境"
@@ -100,6 +116,7 @@ show_menu() {
     echo -e "3) 系统安全加固 (sysctl、auditd、自动更新)"
     echo -e "4) 回滚 SSH 配置（使用备份恢复）"
     echo -e "5) 一键执行推荐流程 (1 + 2 + 3)"
+    echo -e "6) 配置 nginx 反向代理（用于 Cloudflare Tunnel）"
     echo -e "0) 退出"
   fi
   echo -e "${GREEN}----------------------------------------------${NC}"
@@ -108,9 +125,9 @@ show_menu() {
 while true; do
   show_menu
   if is_en; then
-    read -rp "Select an option [0-5]: " choice
+    read -rp "Select an option [0-6]: " choice
   else
-    read -rp "请选择要执行的操作 [0-5]: " choice
+    read -rp "请选择要执行的操作 [0-6]: " choice
   fi
   case "$choice" in
     1)
@@ -140,14 +157,19 @@ while true; do
       run_setup_ssh_firewall
       run_security_hardening
       ;;
+    6)
+      msg "${GREEN}>>> 执行：配置 nginx 反向代理${NC}" \
+          "${GREEN}>>> Running: setup nginx reverse proxy${NC}"
+      run_nginx_proxy
+      ;;
     0)
       msg "${GREEN}已退出 Linux 初始化向导${NC}" \
           "${GREEN}Exited Linux initialization wizard${NC}"
       break
       ;;
     *)
-      msg "${YELLOW}无效选项，请输入 0-5 之间的数字${NC}" \
-          "${YELLOW}Invalid option, please enter a number between 0 and 5.${NC}"
+      msg "${YELLOW}无效选项，请输入 0-6 之间的数字${NC}" \
+          "${YELLOW}Invalid option, please enter a number between 0 and 6.${NC}"
       ;;
   esac
 done
