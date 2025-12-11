@@ -14,52 +14,69 @@ verify_checksums
 ensure_root
 ensure_apt
 
+# 网络检查（可通过环境变量 SKIP_NETWORK_CHECK=1 跳过）
+if [ "${SKIP_NETWORK_CHECK:-0}" != "1" ]; then
+  check_network
+fi
+
 run_setup_env() {
+  log_info "Starting setup_env.sh"
   if [ ! -x "${SCRIPT_DIR}/setup_env.sh" ]; then
     if is_en; then
       echo -e "${RED}setup_env.sh not found, please check the project files.${NC}"
     else
       echo -e "${RED}未找到 setup_env.sh，请确认项目完整性${NC}"
     fi
+    log_error "setup_env.sh not found"
     return 1
   fi
   bash "${SCRIPT_DIR}/setup_env.sh"
+  log_info "Completed setup_env.sh"
 }
 
 run_setup_ssh_firewall() {
+  log_info "Starting setup_ssh_firewall.sh"
   if [ ! -x "${SCRIPT_DIR}/setup_ssh_firewall.sh" ]; then
     if is_en; then
       echo -e "${RED}setup_ssh_firewall.sh not found, please check the project files.${NC}"
     else
       echo -e "${RED}未找到 setup_ssh_firewall.sh，请确认项目完整性${NC}"
     fi
+    log_error "setup_ssh_firewall.sh not found"
     return 1
   fi
   bash "${SCRIPT_DIR}/setup_ssh_firewall.sh"
+  log_info "Completed setup_ssh_firewall.sh"
 }
 
 run_rollback_ssh() {
+  log_info "Starting rollback_ssh.sh"
   if [ ! -x "${SCRIPT_DIR}/rollback_ssh.sh" ]; then
     if is_en; then
       echo -e "${RED}rollback_ssh.sh not found, please check the project files.${NC}"
     else
       echo -e "${RED}未找到 rollback_ssh.sh，请确认项目完整性${NC}"
     fi
+    log_error "rollback_ssh.sh not found"
     return 1
   fi
   bash "${SCRIPT_DIR}/rollback_ssh.sh"
+  log_info "Completed rollback_ssh.sh"
 }
 
 run_security_hardening() {
+  log_info "Starting setup_security_hardening.sh"
   if [ ! -x "${SCRIPT_DIR}/setup_security_hardening.sh" ]; then
     if is_en; then
       echo -e "${RED}setup_security_hardening.sh not found, please check the project files.${NC}"
     else
       echo -e "${RED}未找到 setup_security_hardening.sh，请确认项目完整性${NC}"
     fi
+    log_error "setup_security_hardening.sh not found"
     return 1
   fi
   bash "${SCRIPT_DIR}/setup_security_hardening.sh"
+  log_info "Completed setup_security_hardening.sh"
 }
 
 show_menu() {

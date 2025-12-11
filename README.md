@@ -43,6 +43,37 @@ All scripts support **Chinese / English UI**; the entry script will ask for lang
    - 如遇问题，使用回滚功能恢复到最近一次 sshd_config 备份  
      If something goes wrong, roll back to the latest sshd_config backup
 
+### 自动化部署 / Automated Deployment
+
+支持通过配置文件实现非交互式自动化部署：  
+Supports non-interactive automated deployment via configuration file:
+
+1. 复制配置模板 / Copy the configuration template:
+
+   ```bash
+   cp config.env.example config.env
+   ```
+
+2. 编辑 `config.env`，取消注释并设置需要的选项 / Edit `config.env`, uncomment and set the options you need
+
+3. 以非交互模式运行 / Run in non-interactive mode:
+
+   ```bash
+   sudo INIT_NON_INTERACTIVE=1 ./linux_server_initial.sh
+   ```
+
+**可用环境变量 / Available environment variables:**
+
+| 变量 / Variable | 说明 / Description |
+|----------------|-------------------|
+| `INIT_LANG` | 语言：zh/en / Language: zh/en |
+| `INIT_NON_INTERACTIVE` | 非交互模式 (1=启用) / Non-interactive mode |
+| `INIT_SKIP_CHECKSUM` | 跳过完整性校验 (1=跳过) / Skip checksum verification |
+| `SKIP_NETWORK_CHECK` | 跳过网络检查 (1=跳过) / Skip network check |
+
+详细选项请参考 `config.env.example`。  
+See `config.env.example` for detailed options.
+
 ### 单独运行脚本 / Run scripts individually
 
 如果你只想执行某个步骤，也可以直接调用：  
