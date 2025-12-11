@@ -94,6 +94,44 @@ run_nginx_proxy() {
   log_info "Completed setup_nginx_proxy.sh"
 }
 
+run_manage_nginx_service() {
+  log_info "Starting manage_nginx_service.sh"
+  if [ ! -x "${SCRIPT_DIR}/manage_nginx_service.sh" ]; then
+    if is_en; then
+      echo -e "${RED}manage_nginx_service.sh not found, please check the project files.${NC}"
+    else
+      echo -e "${RED}未找到 manage_nginx_service.sh，请确认项目完整性${NC}"
+    fi
+    log_error "manage_nginx_service.sh not found"
+    return 1
+  fi
+  # 显示子菜单
+  echo ""
+  if is_en; then
+    echo -e "${GREEN}Nginx Service Management:${NC}"
+    echo -e "  a) Add new proxy service"
+    echo -e "  r) Remove proxy service"
+    echo -e "  l) List all services"
+    echo -e "  b) Back to main menu"
+    read -rp "Select an option [a/r/l/b]: " subchoice
+  else
+    echo -e "${GREEN}Nginx 服务管理:${NC}"
+    echo -e "  a) 添加新的代理服务"
+    echo -e "  r) 删除代理服务"
+    echo -e "  l) 列出所有服务"
+    echo -e "  b) 返回主菜单"
+    read -rp "请选择操作 [a/r/l/b]: " subchoice
+  fi
+  case "$subchoice" in
+    a|A) bash "${SCRIPT_DIR}/manage_nginx_service.sh" add ;;
+    r|R) bash "${SCRIPT_DIR}/manage_nginx_service.sh" remove ;;
+    l|L) bash "${SCRIPT_DIR}/manage_nginx_service.sh" list ;;
+    b|B) return 0 ;;
+    *) msg "${YELLOW}无效选项${NC}" "${YELLOW}Invalid option${NC}" ;;
+  esac
+  log_info "Completed manage_nginx_service.sh"
+}
+
 show_menu() {
   echo -e "${GREEN}==============================================${NC}"
   if is_en; then
@@ -109,6 +147,7 @@ show_menu() {
     echo -e "4) Roll back SSH configuration (from backup)"
     echo -e "5) Recommended full flow (1 + 2 + 3)"
     echo -e "6) Setup nginx reverse proxy (for Cloudflare Tunnel)"
+    echo -e "7) Manage nginx proxy services (add/remove/list)"
     echo -e "0) Exit"
   else
     echo -e "1) 创建新用户并初始化开发环境"
@@ -117,6 +156,7 @@ show_menu() {
     echo -e "4) 回滚 SSH 配置（使用备份恢复）"
     echo -e "5) 一键执行推荐流程 (1 + 2 + 3)"
     echo -e "6) 配置 nginx 反向代理（用于 Cloudflare Tunnel）"
+    echo -e "7) 管理 nginx 代理服务（添加/删除/列出）"
     echo -e "0) 退出"
   fi
   echo -e "${GREEN}----------------------------------------------${NC}"
@@ -125,9 +165,9 @@ show_menu() {
 while true; do
   show_menu
   if is_en; then
-    read -rp "Select an option [0-6]: " choice
+    read -rp "Select an option [0-7]: " choice
   else
-    read -rp "请选择要执行的操作 [0-6]: " choice
+    read -rp "请选择要执行的操作 [0-7]: " choice
   fi
   case "$choice" in
     1)
@@ -162,14 +202,19 @@ while true; do
           "${GREEN}>>> Running: setup nginx reverse proxy${NC}"
       run_nginx_proxy
       ;;
+    7)
+      msg "${GREEN}>>> 执行：管理 nginx 代理服务${NC}" \
+          "${GREEN}>>> Running: manage nginx proxy services${NC}"
+      run_manage_nginx_service
+      ;;
     0)
       msg "${GREEN}已退出 Linux 初始化向导${NC}" \
           "${GREEN}Exited Linux initialization wizard${NC}"
       break
       ;;
     *)
-      msg "${YELLOW}无效选项，请输入 0-6 之间的数字${NC}" \
-          "${YELLOW}Invalid option, please enter a number between 0 and 6.${NC}"
+      msg "${YELLOW}无效选项，请输入 0-7 之间的数字${NC}" \
+          "${YELLOW}Invalid option, please enter a number between 0 and 7.${NC}"
       ;;
   esac
 done
