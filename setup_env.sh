@@ -83,6 +83,7 @@ else
 fi
 
 # 4. 创建用户并赋予 sudo 组
+USER_ALREADY_EXISTS=false
 if [[ "$SKIP_USER_CREATION" =~ ^[Yy]$ ]]; then
   if is_en; then
     echo -e "${YELLOW}Skipping user creation step; the user must already exist.${NC}"
@@ -97,6 +98,7 @@ if [[ "$SKIP_USER_CREATION" =~ ^[Yy]$ ]]; then
     fi
     exit 1
   fi
+  USER_ALREADY_EXISTS=true
 else
   if id "$NEW_USER" &>/dev/null; then
       if is_en; then
@@ -104,6 +106,7 @@ else
       else
         echo -e "${YELLOW}用户 $NEW_USER 已存在，跳过创建${NC}"
       fi
+      USER_ALREADY_EXISTS=true
   else
       useradd -m -s /usr/bin/zsh -G sudo "$NEW_USER"
       if is_en; then
@@ -111,6 +114,14 @@ else
       else
         echo -e "${GREEN}用户 $NEW_USER 创建成功${NC}"
       fi
+      
+      # 为新创建的用户设置密码（用于 sudo）
+      if is_en; then
+        echo -e "${GREEN}Setting password for ${NEW_USER} (required for sudo):${NC}"
+      else
+        echo -e "${GREEN}为 ${NEW_USER} 设置密码（用于 sudo 授权）:${NC}"
+      fi
+      passwd "$NEW_USER"
   fi
 fi
 
@@ -213,24 +224,50 @@ else
   fi
 fi
 
-# 7.1 可选：锁定用户密码，仅允许 SSH 公钥登录
-if is_en; then
-  prompt_read "是否锁定 ${NEW_USER} 的密码，仅允许 SSH 公钥登录? [Y/n]: " \
-              "Lock password for ${NEW_USER} so only SSH key auth is allowed? [Y/n]: " \
-              "y" LOCK_PASSWD
-else
-  prompt_read "是否锁定 ${NEW_USER} 的密码，仅允许 SSH 公钥登录? [Y/n]: " \
-              "Lock password for ${NEW_USER} so only SSH key auth is allowed? [Y/n]: " \
-              "y" LOCK_PASSWD
+# 7.1 设置或修改密码（用于 sudo），然后询问是否锁定密码禁止 SSH 密码登录
+# 如果用户已存在，询问是否要修改密码
+if [ "$USER_ALREADY_EXISTS" = true ]; then
+  if is_en; then
+    prompt_read "是否修改 ${NEW_USER} 的密码（用于 sudo）? [y/N]: " \
+                "Change password for ${NEW_USER} (for sudo)? [y/N]: " \
+                "n" CHANGE_PASSWD
+  else
+    prompt_read "是否修改 ${NEW_USER} 的密码（用于 sudo）? [y/N]: " \
+                "Change password for ${NEW_USER} (for sudo)? [y/N]: " \
+                "n" CHANGE_PASSWD
+  fi
+  CHANGE_PASSWD="${CHANGE_PASSWD:-n}"
+  
+  if [[ "$CHANGE_PASSWD" =~ ^[Yy]$ ]]; then
+    if is_en; then
+      echo -e "${GREEN}Setting new password for ${NEW_USER} (required for sudo):${NC}"
+    else
+      echo -e "${GREEN}为 ${NEW_USER} 设置新密码（用于 sudo 授权）:${NC}"
+    fi
+    passwd "$NEW_USER"
+  fi
 fi
-LOCK_PASSWD="${LOCK_PASSWD:-y}"
+
+# 询问是否锁定密码（禁止 SSH 密码登录，但不影响 sudo）
+if is_en; then
+  prompt_read "是否锁定 ${NEW_USER} 的 SSH 密码登录（sudo 仍可用密码，仅禁止 SSH 密码登录）? [y/N]: " \
+              "Lock SSH password login for ${NEW_USER} (sudo still works, only prevents SSH password auth)? [y/N]: " \
+              "n" LOCK_PASSWD
+else
+  prompt_read "是否锁定 ${NEW_USER} 的 SSH 密码登录（sudo 仍可用密码，仅禁止 SSH 密码登录）? [y/N]: " \
+              "Lock SSH password login for ${NEW_USER} (sudo still works, only prevents SSH password auth)? [y/N]: " \
+              "n" LOCK_PASSWD
+fi
+LOCK_PASSWD="${LOCK_PASSWD:-n}"
 
 if [[ "$LOCK_PASSWD" =~ ^[Yy]$ ]]; then
   if passwd -l "$NEW_USER" >/dev/null 2>&1; then
     if is_en; then
-      echo -e "${GREEN}Password for ${NEW_USER} locked. Only SSH key login will work (for services that allow it).${NC}"
+      echo -e "${GREEN}SSH password login locked for ${NEW_USER}.${NC}"
+      echo -e "${YELLOW}Note: User can still use password for sudo, but cannot SSH login with password.${NC}"
     else
-      echo -e "${GREEN}已锁定 ${NEW_USER} 的密码，仅可通过 SSH 公钥等非密码方式登录（取决于服务配置）。${NC}"
+      echo -e "${GREEN}已锁定 ${NEW_USER} 的 SSH 密码登录${NC}"
+      echo -e "${YELLOW}提示：用户仍可使用密码进行 sudo 操作，但无法使用密码通过 SSH 登录。${NC}"
     fi
   else
     if is_en; then
@@ -241,9 +278,9 @@ if [[ "$LOCK_PASSWD" =~ ^[Yy]$ ]]; then
   fi
 else
   if is_en; then
-    echo -e "${YELLOW}Password for ${NEW_USER} kept unchanged.${NC}"
+    echo -e "${YELLOW}Password for ${NEW_USER} kept unlocked. User can use password for both sudo and SSH.${NC}"
   else
-    echo -e "${YELLOW}保留 ${NEW_USER} 的现有密码配置，不做锁定。${NC}"
+    echo -e "${YELLOW}保留 ${NEW_USER} 的密码，可用于 sudo 和 SSH 登录。${NC}"
   fi
 fi
 
