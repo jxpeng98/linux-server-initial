@@ -3,81 +3,21 @@
 # 系统级安全加固脚本
 set -euo pipefail
 
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[0;33m'
-NC='\033[0m'
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-INIT_LANG="${INIT_LANG:-}"
+# 引入公共函数
+# shellcheck source=common.sh
+. "${SCRIPT_DIR}/common.sh"
 
-if [ -z "$INIT_LANG" ]; then
-  echo -e "${GREEN}Select language / 选择语言:${NC}"
-  echo -e "1) 简体中文"
-  echo -e "2) English"
-  read -rp "请输入选项 [1/2] (默认 1): " LANG_CHOICE
-  case "$LANG_CHOICE" in
-    2)
-      INIT_LANG="en"
-      ;;
-    *)
-      INIT_LANG="zh"
-      ;;
-  esac
-fi
-
-is_en() {
-  [ "$INIT_LANG" = "en" ]
-}
-
-msg() {
-  local zh="$1"
-  local en="$2"
-  if is_en; then
-    echo -e "$en"
-  else
-    echo -e "$zh"
-  fi
-}
-
-prompt_read() {
-  local zh="$1"
-  local en="$2"
-  local default="$3"
-  local __var="$4"
-  local input
-  if is_en; then
-    read -rp "$en" input
-  else
-    read -rp "$zh" input
-  fi
-  if [ -z "$input" ] && [ -n "$default" ]; then
-    input="$default"
-  fi
-  printf -v "$__var" '%s' "$input"
-}
-
-if [ "$EUID" -ne 0 ]; then
-  if is_en; then
-    echo -e "${RED}Please run this script as root (sudo ./setup_security_hardening.sh)${NC}"
-  else
-    echo -e "${RED}请使用 root 权限运行此脚本 (sudo ./setup_security_hardening.sh)${NC}"
-  fi
-  exit 1
-fi
+# 如果从主入口调用，语言已初始化；否则初始化语言
+init_lang
+ensure_root
+ensure_apt
 
 if is_en; then
   echo -e "${GREEN}=== System Security Hardening (Ubuntu/Debian) ===${NC}"
 else
   echo -e "${GREEN}=== 系统安全加固 (Ubuntu/Debian) ===${NC}"
-fi
-
-if ! command -v apt &>/dev/null; then
-  if is_en; then
-    echo -e "${RED}This script currently supports only apt-based distros (Debian/Ubuntu, etc.).${NC}"
-  else
-    echo -e "${RED}当前脚本暂仅支持基于 apt 的发行版 (Debian/Ubuntu 等)。${NC}"
-  fi
-  exit 1
 fi
 
 # ============================================
