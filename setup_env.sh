@@ -115,11 +115,15 @@ else
         echo -e "${GREEN}用户 $NEW_USER 创建成功${NC}"
       fi
       
-      # 为新创建的用户设置密码（用于 sudo）
+      # 为新创建的用户设置密码（仅在未配置 sudo 免密时需要）
+      # 注意：此时 SKIP_PASSWORD_SETUP 还未设置，所以总是设置密码
+      # 如果后续配置了 sudo 免密，密码只用于锁定后的可选恢复
       if is_en; then
-        echo -e "${GREEN}Setting password for ${NEW_USER} (required for sudo):${NC}"
+        echo -e "${GREEN}Setting password for ${NEW_USER}:${NC}"
+        echo -e "${YELLOW}(If you enable passwordless sudo later, this password is only for recovery)${NC}"
       else
-        echo -e "${GREEN}为 ${NEW_USER} 设置密码（用于 sudo 授权）:${NC}"
+        echo -e "${GREEN}为 ${NEW_USER} 设置密码:${NC}"
+        echo -e "${YELLOW}(如果之后启用 sudo 免密，此密码仅用于恢复)${NC}"
       fi
       passwd "$NEW_USER"
   fi
@@ -157,12 +161,22 @@ if [[ "$SUDO_NOPASSWD" =~ ^[Yy]$ ]]; then
   echo "$NEW_USER ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/$NEW_USER"
   chmod 0440 "/etc/sudoers.d/$NEW_USER"
   visudo -cf "/etc/sudoers.d/$NEW_USER" >/dev/null
+  
+  if is_en; then
+    echo -e "${GREEN}Passwordless sudo configured. User ${NEW_USER} can run sudo without password.${NC}"
+  else
+    echo -e "${GREEN}sudo 免密已配置。用户 ${NEW_USER} 可以无需密码执行 sudo 命令。${NC}"
+  fi
+  
+  # 如果配置了 sudo 免密，跳过后续的密码设置步骤
+  SKIP_PASSWORD_SETUP=true
 else
   if is_en; then
-    echo -e "${YELLOW}Skip configuring passwordless sudo.${NC}"
+    echo -e "${YELLOW}Passwordless sudo not configured. User will need password for sudo.${NC}"
   else
-    echo -e "${YELLOW}跳过配置 sudo 免密${NC}"
+    echo -e "${YELLOW}未配置 sudo 免密。用户执行 sudo 时需要输入密码。${NC}"
   fi
+  SKIP_PASSWORD_SETUP=false
 fi
 
 # 6. 配置 SSH Key
@@ -224,9 +238,10 @@ else
   fi
 fi
 
-# 7.1 设置或修改密码（用于 sudo），然后询问是否锁定密码禁止 SSH 密码登录
-# 如果用户已存在，询问是否要修改密码
-if [ "$USER_ALREADY_EXISTS" = true ]; then
+# 7.1 设置或修改密码，然后询问是否锁定密码禁止 SSH 密码登录
+# 如果配置了 sudo 免密，密码不是必需的，但仍可以设置用于紧急恢复
+# 如果用户已存在且未配置 sudo 免密，询问是否要修改密码
+if [ "$USER_ALREADY_EXISTS" = true ] && [ "$SKIP_PASSWORD_SETUP" != true ]; then
   if is_en; then
     prompt_read "是否修改 ${NEW_USER} 的密码（用于 sudo）? [y/N]: " \
                 "Change password for ${NEW_USER} (for sudo)? [y/N]: " \
@@ -240,11 +255,17 @@ if [ "$USER_ALREADY_EXISTS" = true ]; then
   
   if [[ "$CHANGE_PASSWD" =~ ^[Yy]$ ]]; then
     if is_en; then
-      echo -e "${GREEN}Setting new password for ${NEW_USER} (required for sudo):${NC}"
+      echo -e "${GREEN}Setting new password for ${NEW_USER}:${NC}"
     else
-      echo -e "${GREEN}为 ${NEW_USER} 设置新密码（用于 sudo 授权）:${NC}"
+      echo -e "${GREEN}为 ${NEW_USER} 设置新密码:${NC}"
     fi
     passwd "$NEW_USER"
+  fi
+elif [ "$SKIP_PASSWORD_SETUP" = true ]; then
+  if is_en; then
+    echo -e "${YELLOW}Passwordless sudo is enabled. Password is not required for sudo commands.${NC}"
+  else
+    echo -e "${YELLOW}已启用 sudo 免密。执行 sudo 命令不需要密码。${NC}"
   fi
 fi
 
