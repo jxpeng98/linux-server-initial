@@ -273,8 +273,8 @@ else
   fi
 
   if [ ! -d "${USER_HOME}/.oh-my-zsh" ]; then
-      sudo -u "$NEW_USER" -H sh -c \
-        "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+      # 在用户 home 目录中运行安装脚本，避免 cd 回原目录时权限问题
+      sudo -u "$NEW_USER" -H bash -c "cd ~ && sh -c \"\$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)\" \"\" --unattended"
   else
       if is_en; then
         echo -e "${YELLOW}Oh My Zsh already exists, skipping installation.${NC}"
