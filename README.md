@@ -23,6 +23,7 @@ All scripts support **Chinese / English UI**; the entry script will ask for lang
 1. 克隆仓库后进入目录 / Clone the repo and enter the directory:
 
    ```bash
+   git clone https://github.com/jxpeng98/linux-server-initial.git
    cd linux-server-initial
    chmod +x *.sh
    ```
