@@ -1,0 +1,54 @@
+name: Update Checksums
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # 当核心脚本文件变更时触发
+      - 'common.sh'
+      - 'linux_server_initial.sh'
+      - 'setup_env.sh'
+      - 'setup_ssh_firewall.sh'
+      - 'setup_security_hardening.sh'
+      - 'rollback_ssh.sh'
+  workflow_dispatch:  # 允许手动触发
+
+permissions:
+  contents: write  # 需要写入权限
+
+jobs:
+  update-checksums:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate checksums
+        run: |
+          cd ${{ github.workspace }}
+          sha256sum common.sh linux_server_initial.sh setup_env.sh setup_ssh_firewall.sh setup_security_hardening.sh rollback_ssh.sh > checksums.sha256
+          echo "Generated checksums:"
+          cat checksums.sha256
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --quiet checksums.sha256; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No changes to checksums"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Checksums have changed"
+            git diff checksums.sha256
+          fi
+
+      - name: Commit and push changes
+        if: steps.check_changes.outputs.changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add checksums.sha256
+          git commit -m "chore: auto-update checksums.sha256 [skip ci]"
+          git push
