@@ -10,12 +10,10 @@ This is a small toolkit for initializing a fresh Linux server, currently targeti
   Create a new user and set up common dev tools (Zsh / Oh My Zsh / mise / Docker, etc.)
 - 加固 SSH 配置并开启 UFW 防火墙（默认使用 `ufw limit` 为 SSH 端口提供简单的暴力破解防护，可选安装 fail2ban）  
   Harden SSH configuration and enable UFW firewall (using `ufw limit` on SSH ports for basic brute-force protection, optional fail2ban installation)
-- **系统安全加固**（内核参数 sysctl、自动安全更新、auditd 审计、登录安全限制等）  
-  **System security hardening** (kernel parameters via sysctl, automatic security updates, auditd auditing, login security restrictions, etc.)
+- 系统安全加固（内核参数 sysctl、自动安全更新、auditd 审计、登录安全限制等）  
+  System security hardening (kernel parameters via sysctl, automatic security updates, auditd auditing, login security restrictions, etc.)
 - 在配置出问题时回滚 SSH 配置（使用之前自动生成的备份）  
   Roll back SSH configuration using automatically created backups
-- 初始化后可按需批量安装常用软件包（基础 CLI、构建链、语言运行时、网络/数据库/容器工具）  
-  After initialization you can batch-install optional software bundles (base CLI, build toolchain, runtimes, networking/DB/container tools)
 
 所有脚本均支持 **中文 / English 双语界面**，入口脚本会先询问语言。  
 All scripts support **Chinese / English UI**; the entry script will ask for language first.
@@ -26,7 +24,7 @@ All scripts support **Chinese / English UI**; the entry script will ask for lang
 
    ```bash
    cd linux-server-initial
-   chmod +x linux_server_initial.sh setup_env.sh setup_ssh_firewall.sh setup_security_hardening.sh rollback_ssh.sh install_optional_software.sh
+   chmod +x *.sh
    ```
 
 2. 以 root 身份运行交互式向导（推荐） / Run the interactive wizard as root (recommended):
@@ -40,8 +38,8 @@ All scripts support **Chinese / English UI**; the entry script will ask for lang
      Create a new user and initialize the dev environment
    - 配置 SSH 新端口 / 禁用 root / 禁用密码登录，并自动配置 UFW  
      Configure a new SSH port, disable root login and password auth, and set up UFW
-   - **执行系统安全加固（sysctl、auditd、自动更新等）**  
-     **Run system security hardening (sysctl, auditd, auto-updates, etc.)**
+   - 执行系统安全加固（sysctl、auditd、自动更新等）  
+     Run system security hardening (sysctl, auditd, auto-updates, etc.)
    - 如遇问题，使用回滚功能恢复到最近一次 sshd_config 备份  
      If something goes wrong, roll back to the latest sshd_config backup
 
@@ -73,20 +71,6 @@ If you only want to run a specific step, you can call the scripts directly:
   ```bash
   sudo ./rollback_ssh.sh
   ```
-
-- 初始化后批量安装常用软件包 / Batch install optional software bundles after the initial setup:
-
-  ```bash
-  sudo ./install_optional_software.sh
-  ```
-
-  目前支持的组合 / Bundles included:
-  - 基础 CLI 工具 / Base CLI (htop, tmux, jq, ripgrep, etc.)
-  - 编译/构建工具链 / Build toolchain (build-essential, cmake, clang, etc.)
-  - 语言运行时 / Language runtimes (Python/Go/Java)
-  - 网络与诊断工具 / Networking & diagnostics (nmap, tcpdump, mtr, etc.)
-  - 数据库客户端 / Database clients (psql/mysql/redis/sqlite)
-  - 容器工具 / Container tools (Docker + Compose plugin)
 
 ### 安全加固功能详情 / Security Hardening Details
 
